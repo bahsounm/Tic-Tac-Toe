@@ -6,6 +6,7 @@ class GameManager:
     def __init__(self, board):
         self.board = board
         self.players = None
+        self.cpu_difficulty = None
 
     def show_rules_board(self):
         rules = [
@@ -40,43 +41,71 @@ class GameManager:
     def play_game(self):
         self.create_players()
 
+        # Randomize who goes first
         p1 = rand.choice(self.players)
         p2 = self.players[1] if p1 == self.players[0] else self.players[0]
 
-        os.system('cls')
-        print("Player going first:", p1.name, f"({p1.token})")
-        print("Second player:", p2.name, f"({p2.token})\n")
+        os.system("cls")
+        print("Player going first:", p1.name)
+        print("Second player:", p2.name)
+        print()
 
         self.show_rules_board()
-        os.system('cls')
+        os.system("cls")
+
+        # Detect CPU correctly
+        cpu_player = None
+        for player in self.players:
+            if player.name.lower() == "cpu":
+                cpu_player = player
+                break
 
         current_player = p1
 
         while True:
             print(self.render_board())
-            choice = input(f"{current_player.name} select your position (1-9): ").strip()
 
+            # CPU turn
+            if current_player == cpu_player:
+                if self.cpu_difficulty == "easy":
+                    choice = self.cpu_move_easy()
+                else:
+                    # find human player's token to block properly
+                    human = p1 if cpu_player == p2 else p2
+                    choice = self.cpu_move_medium(cpu_player.token, human.token)
+
+                print(f"\nCPU chooses {choice}")
+
+            else:
+                # Human turn
+                choice = input(f"{current_player.name} choose (1-9): ").strip()
+
+            # Try placing
             if not self.place_piece(choice, current_player.token):
                 continue
 
-            winner_token = self.check_win_condition()
-            if winner_token:
+            winner = self.check_win_condition()
+            if winner:
                 print(self.render_board())
-                print(f"\nThe winner is {current_player.name}!")
+                print(f"\nWinner is {current_player.name}!")
                 break
 
-            if all(cell != " " for row in self.board for cell in row):
+            if all(c != " " for row in self.board for c in row):
                 print(self.render_board())
                 print("\nIt's a tie!")
                 break
 
+            # Switch turns
             current_player = p2 if current_player == p1 else p1
-            os.system('cls')
-
+            os.system("cls")
 
     def create_players(self):
         p1_token, p2_token = self.select_tokens()
         p1_name, p2_name = self.select_names()
+
+        # If player 2 is CPU, ask for difficulty
+        if p2_name.lower() == "cpu":
+            self.cpu_difficulty = self.select_cpu_difficulty()
 
         self.players = [
             User(p1_name, p1_token),
@@ -144,3 +173,65 @@ class GameManager:
         self.board[r][c] = token
         return True
 
+    # This is if we want to face the cpu and not a second player
+    def get_empty_positions(self):
+        empties = []
+        pos_map = {
+            "1": (0,0), "2": (0,1), "3": (0,2),
+            "4": (1,0), "5": (1,1), "6": (1,2),
+            "7": (2,0), "8": (2,1), "9": (2,2),
+        }
+
+        for pos, (r,c) in pos_map.items():
+            if self.board[r][c] == " ":
+                empties.append(pos)
+
+        return empties
+
+    def cpu_move_easy(self):
+        empties = self.get_empty_positions()
+        return rand.choice(empties)
+
+    def cpu_move_medium(self, cpu_token, human_token):
+        pos_map = {
+        "1": (0,0), "2": (0,1), "3": (0,2),
+        "4": (1,0), "5": (1,1), "6": (1,2),
+        "7": (2,0), "8": (2,1), "9": (2,2),
+        }
+        empties = self.get_empty_positions()
+
+        for pos in empties:
+            r,c = pos_map[pos]
+            self.board[r][c] = cpu_token
+            if self.check_win_condition() == cpu_token:
+                r,c = pos_map[pos]
+                self.board[r][c] = " "
+                return pos
+            r,c = pos_map[pos]
+            self.board[r][c] = " "
+
+        for pos in empties:
+            r,c = pos_map[pos]
+            self.board[r][c] = human_token
+            if self.check_win_condition() == human_token:
+                r,c = pos_map[pos]
+                self.board[r][c] = " "
+                return pos
+            r,c = pos_map[pos]
+            self.board[r][c] = " "
+
+        return rand.choice(empties)
+
+    def select_cpu_difficulty(self):
+        while True:
+            print("\nCPU Difficulty:")
+            print("1) Easy")
+            print("2) Medium")
+            choice = input("Choose difficulty (1 or 2): ").strip()
+
+            if choice == "1":
+                return "easy"
+            elif choice == "2":
+                return "medium"
+            else:
+                print("Invalid option. Please select 1 or 2.")
